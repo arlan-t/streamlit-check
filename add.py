@@ -275,7 +275,7 @@ It’s exploratory, computationally heavy, and sensitive to random seed — use 
     c3, c4 = two_cols()
     with c3:
         fig, ax = plt.subplots(constrained_layout=True)
-        col = df["International plan"].map({"Yes": "tab:orange", "No": "tab:blue"}).values
+        col = df["International plan"].map({"Yes": "tab:red", "No": "tab:purple"}).values
         ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=col, alpha=0.5, s=12)
         ax.set_title("t-SNE by International plan")
         handles = [
