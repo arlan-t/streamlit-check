@@ -275,8 +275,9 @@ It’s exploratory, computationally heavy, and sensitive to random seed — use 
     c1, c2 = two_cols()
     with c1:
         fig, ax = plt.subplots(constrained_layout=True)
-        ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], alpha=0.5, s=10, c="#777777")
+        ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], alpha=0.5, s=10, c="#777777", label="Customers")
         ax.set_title("t-SNE (all customers)")
+        ax.legend()
         plot(fig)
 
     with c2:
@@ -285,6 +286,11 @@ It’s exploratory, computationally heavy, and sensitive to random seed — use 
             colors = df["Churn"].map({False: "tab:blue", True: "tab:orange"}).values
             ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=colors, alpha=0.55, s=12)
             ax.set_title("t-SNE colored by Churn")
+            handles = [
+                plt.Line2D([0], [0], marker="o", color="w", label="Loyal (blue)", markerfacecolor="tab:blue", markersize=6),
+                plt.Line2D([0], [0], marker="o", color="w", label="Churned (orange)", markerfacecolor="tab:orange", markersize=6),
+            ]
+            ax.legend(handles=handles, loc="best", frameon=False)
             plot(fig)
 
     c3, c4 = two_cols()
@@ -293,12 +299,23 @@ It’s exploratory, computationally heavy, and sensitive to random seed — use 
         col = df["International plan"].map({"Yes": "tab:orange", "No": "tab:blue"}).values
         ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=col, alpha=0.5, s=12)
         ax.set_title("t-SNE by International plan")
+        handles = [
+            plt.Line2D([0], [0], marker="o", color="w", label="No plan (blue)", markerfacecolor="tab:blue", markersize=6),
+            plt.Line2D([0], [0], marker="o", color="w", label="Yes plan (orange)", markerfacecolor="tab:orange", markersize=6),
+        ]
+        ax.legend(handles=handles, loc="best", frameon=False)
         plot(fig)
+
     with c4:
         fig, ax = plt.subplots(constrained_layout=True)
         col = df["Voice mail plan"].map({"Yes": "tab:orange", "No": "tab:blue"}).values
         ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=col, alpha=0.5, s=12)
         ax.set_title("t-SNE by Voice mail plan")
+        handles = [
+            plt.Line2D([0], [0], marker="o", color="w", label="No voicemail (blue)", markerfacecolor="tab:blue", markersize=6),
+            plt.Line2D([0], [0], marker="o", color="w", label="Yes voicemail (orange)", markerfacecolor="tab:orange", markersize=6),
+        ]
+        ax.legend(handles=handles, loc="best", frameon=False)
         plot(fig)
 else:
     st.info("t-SNE needs 'International plan' and 'Voice mail plan' columns.")
