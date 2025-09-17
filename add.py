@@ -75,11 +75,18 @@ if show_raw:
 # -----------------------------
 if "Churn" in df.columns:
     st.subheader("Churn Distribution")
-    fig, ax = plt.subplots()
-    sns.countplot(x="Churn", data=df, ax=ax)
-    ax.set_xlabel("Churn")
-    ax.set_ylabel("Count")
-    st.pyplot(fig)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        sns.countplot(x="Churn", data=df, ax=ax)
+        st.pyplot(fig)
+    
+    with col2:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        sns.countplot(x="Customer service calls", data=df, ax=ax)
+        st.pyplot(fig)
+
 
 # -----------------------------
 # Histograms & Density
