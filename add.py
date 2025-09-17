@@ -119,14 +119,31 @@ if "Total intl calls" in df.columns:
 
 # ===== Section: Correlations =====
 st.subheader("Correlation (numeric) — charges dropped to reduce redundancy")
+
 redundant = {"Total day charge", "Total eve charge", "Total night charge", "Total intl charge"}
 num_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c not in redundant]
+
 if len(num_cols) >= 2:
     corr = df[num_cols].corr(numeric_only=True)
-    fig, ax = plt.subplots(constrained_layout=True, figsize=(6, 5))
-    sns.heatmap(corr, ax=ax, cmap="coolwarm", cbar=True, square=True)
-    ax.set_title("Correlation Heatmap")
-    plot(fig)
+
+    fig = px.imshow(
+        corr,
+        text_auto=".2f",
+        color_continuous_scale="RdBu_r",
+        zmin=-1, zmax=1,
+        aspect="auto",
+        labels=dict(color="Correlation"),
+        title="Correlation Heatmap (interactive)"
+    )
+
+    fig.update_layout(
+        xaxis=dict(side="bottom", tickangle=45),
+        margin=dict(l=40, r=40, t=60, b=40),
+        width=None, height=600
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
 
 # ===== Section: Bivariate (Day vs Night minutes) =====
 if all(c in df.columns for c in ["Total day minutes", "Total night minutes"]):
