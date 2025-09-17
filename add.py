@@ -244,52 +244,62 @@ while trying to preserve neighborhoods (close points stay close; far points rema
 It’s exploratory, computationally heavy, and sensitive to random seed — use it to generate hypotheses, not proofs.
 """)
 
-    # Prep X
-    needed = ["International plan", "Voice mail plan"]
-    if all(c in df.columns for c in needed):
-        X = df.drop(columns=[c for c in ["Churn", "State"] if c in df.columns], errors="ignore").copy()
-        for c in needed:
-            if X[c].dtype == object:
-                X[c] = X[c].map({"Yes": 1, "No": 0})
-        X = X.apply(pd.to_numeric, errors="coerce").fillna(0)
+    # --- Safe TSNE builder ---
+    def build_tsne(seed, n_iter, perp):
+        """Construct TSNE robustly across sklearn versions."""
+        try:
+            return TSNE(random_state=int(seed), n_iter=int(n_iter), perplexity=float(perp), init="pca")
+        except TypeError:
+            try:
+                return TSNE(random_state=int(seed), perplexity=float(perp))
+            except TypeError:
+                return TSNE(perplexity=float(perp))
 
-        # valid perplexity
-        n_samples = X.shape[0]
-        max_valid = max(2.0, (n_samples - 1) / 3.0)
-        perp = float(min(max(desired_perp, 5.0), max_valid))
+    # Prep data
+    X = df.drop(columns=[c for c in ["Churn", "State"] if c in df.columns], errors="ignore").copy()
+    for c in ["International plan", "Voice mail plan"]:
+        if c in X.columns and X[c].dtype == object:
+            X[c] = X[c].map({"Yes": 1, "No": 0})
+    X = X.apply(pd.to_numeric, errors="coerce").fillna(0)
 
-        X_scaled = StandardScaler().fit_transform(X)
-        tsne = TSNE(random_state=int(tsne_seed), n_iter=int(tsne_iter), perplexity=perp, init="pca")
-        tsne_repr = tsne.fit_transform(X_scaled)
+    n_samples = X.shape[0]
+    max_valid = max(2.0, (n_samples - 1) / 3.0)
+    perp = float(min(max(desired_perp, 5.0), max_valid))
 
-        # Two-column t-SNE plots
-        c1, c2 = two_cols()
-        with c1:
+    X_scaled = StandardScaler().fit_transform(X)
+
+    tsne = build_tsne(tsne_seed, tsne_iter, perp)
+    tsne_repr = tsne.fit_transform(X_scaled)
+
+    # Two-column t-SNE plots
+    c1, c2 = two_cols()
+    with c1:
+        fig, ax = plt.subplots(constrained_layout=True)
+        ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], alpha=0.5, s=10, c="#777777")
+        ax.set_title("t-SNE (all customers)")
+        plot(fig)
+
+    with c2:
+        if "Churn" in df.columns and pd.api.types.is_bool_dtype(df["Churn"]):
             fig, ax = plt.subplots(constrained_layout=True)
-            ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], alpha=0.5, s=10, c="#777777")
-            ax.set_title("t-SNE (all customers)")
+            colors = df["Churn"].map({False: "tab:blue", True: "tab:orange"}).values
+            ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=colors, alpha=0.55, s=12)
+            ax.set_title("t-SNE colored by Churn")
             plot(fig)
 
-        with c2:
-            if "Churn" in df.columns and pd.api.types.is_bool_dtype(df["Churn"]):
-                fig, ax = plt.subplots(constrained_layout=True)
-                colors = df["Churn"].map({False: "tab:blue", True: "tab:orange"}).values
-                ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=colors, alpha=0.55, s=12)
-                ax.set_title("t-SNE colored by Churn")
-                plot(fig)
+    c3, c4 = two_cols()
+    with c3:
+        fig, ax = plt.subplots(constrained_layout=True)
+        col = df["International plan"].map({"Yes": "tab:orange", "No": "tab:blue"}).values
+        ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=col, alpha=0.5, s=12)
+        ax.set_title("t-SNE by International plan")
+        plot(fig)
+    with c4:
+        fig, ax = plt.subplots(constrained_layout=True)
+        col = df["Voice mail plan"].map({"Yes": "tab:orange", "No": "tab:blue"}).values
+        ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=col, alpha=0.5, s=12)
+        ax.set_title("t-SNE by Voice mail plan")
+        plot(fig)
+else:
+    st.info("t-SNE needs 'International plan' and 'Voice mail plan' columns.")
 
-        c3, c4 = two_cols()
-        with c3:
-            fig, ax = plt.subplots(constrained_layout=True)
-            col = df["International plan"].map({"Yes": "tab:orange", "No": "tab:blue"}).values
-            ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=col, alpha=0.5, s=12)
-            ax.set_title("t-SNE by International plan")
-            plot(fig)
-        with c4:
-            fig, ax = plt.subplots(constrained_layout=True)
-            col = df["Voice mail plan"].map({"Yes": "tab:orange", "No": "tab:blue"}).values
-            ax.scatter(tsne_repr[:, 0], tsne_repr[:, 1], c=col, alpha=0.5, s=12)
-            ax.set_title("t-SNE by Voice mail plan")
-            plot(fig)
-    else:
-        st.info("t-SNE needs 'International plan' and 'Voice mail plan' columns.")
