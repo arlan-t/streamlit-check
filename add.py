@@ -152,7 +152,10 @@ if all(c in df.columns for c in ["Total day minutes", "Total night minutes"]):
     with c1:
         fig = px.scatter(df, x="Total day minutes", y="Total night minutes",
                          color="Churn" if "Churn" in df else None,
-                         opacity=0.6, title="Scatter — Day vs Night")
+                         opacity=0.6, title="Scatter — Day vs Night",
+                        color_discrete_map={          # custom mapping
+                        True: "orange", 
+                        False: "blue"})
         st.plotly_chart(fig, use_container_width=True)
     with c2:
         fig, ax = plt.subplots(constrained_layout=True)
