@@ -134,7 +134,7 @@ if len(num_cols) >= 2:
     with c1:
         corr = df[num_cols].corr(numeric_only=True)
         fig, ax = plt.subplots(constrained_layout=True)
-        sns.heatmap(corr, ax=ax, cmap="coolwarm", cbar=True, square=True)
+        sns.heatmap(corr, ax=ax, cmap="viridis", cbar=True, square=True)
         ax.set_title("Pearson correlation")
         plot(fig)
 
