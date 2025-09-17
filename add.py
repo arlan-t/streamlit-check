@@ -1,125 +1,184 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.manifold import TSNE
+from sklearn.preprocessing import StandardScaler
 
-st.set_page_config(page_title="Telecom Churn — Data Story", layout="wide")
+st.set_page_config(page_title="Telecom Churn Analysis", layout="wide")
 
 @st.cache_data
 def load_data():
     df = pd.read_csv("telecom_churn.csv")
-    # Try to coerce common churn column to boolean
-    target = None
-    for c in df.columns:
-        if c.lower() in ("churn","is_churn","churned","churn_flag","exited"):
-            target = c
-            break
-    def coerce_bool_series(s):
-        if s.dtype == object:
-            mapped = s.astype(str).str.strip().str.lower().map({
-                'yes': True, 'y': True, 'true': True, '1': True, 't': True,
-                'no': False, 'n': False, 'false': False, '0': False, 'f': False
-            })
-            if mapped.notna().mean() > 0.8:
-                return mapped
-        return s
-    if target is not None:
-        df[target] = coerce_bool_series(df[target])
-    return df, target
+    # Normalize churn column to boolean
+    if "Churn" in df.columns:
+        df["Churn"] = df["Churn"].astype(str).str.strip().str.lower().map(
+            {"yes": True, "true": True, "1": True, "no": False, "false": False, "0": False}
+        )
+    return df
 
-df, target = load_data()
+df = load_data()
 
-st.title("📉 Telecom Churn — Data Storyline")
-st.write("Interactive exploration of the churn dataset with KPIs, charts, correlations, and insights.")
+st.title("📊 Telecom Churn — Data Storyline")
 
-# Sidebar
-st.sidebar.header("Settings")
-show_raw = st.sidebar.checkbox("Show raw data sample", value=False)
-sample_n = st.sidebar.slider("Rows to sample", min_value=5, max_value=100, value=20, step=5)
-
-# KPIs
+# --- KPIs
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric("Rows", df.shape[0])
 with col2:
     st.metric("Columns", df.shape[1])
 with col3:
-    num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
-    st.metric("Numeric cols", len(num_cols))
+    num_cols = df.select_dtypes(include=[np.number]).shape[1]
+    st.metric("Numeric features", num_cols)
 with col4:
-    if target is not None and (pd.api.types.is_bool_dtype(df[target]) or pd.api.types.is_numeric_dtype(df[target])):
-        rate = float(pd.Series(df[target]).mean())
-        st.metric("Churn rate", f"{rate*100:.1f}%")
-    else:
-        st.metric("Churn rate", "N/A")
+    st.metric("Churn rate", f"{df['Churn'].mean()*100:.1f}%")
 
-if show_raw:
-    st.dataframe(df.sample(sample_n, random_state=42))
+# --- Distribution of churn
+st.subheader("Churn Distribution")
+fig, ax = plt.subplots()
+sns.countplot(x="Churn", data=df, ax=ax)
+st.pyplot(fig)
 
-# Churn distribution
-if target is not None:
-    st.subheader("Churn Distribution")
-    counts = df[target].value_counts(dropna=False).sort_index()
-    fig = plt.figure()
-    counts.plot(kind="bar")
-    plt.title("Churn distribution")
-    plt.xlabel("Churn")
-    plt.ylabel("Count")
-    st.pyplot(fig)
+# --- Histograms & Density for selected features
+st.subheader("Histograms & Density Plots")
+features = ["Total day minutes", "Total intl calls"]
+fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+df[features].hist(ax=axes)
+st.pyplot(fig)
 
-# Correlation heatmap
-num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
-if len(num_cols) >= 2:
-    st.subheader("Correlation Heatmap (Numeric Features)")
-    corr = df[num_cols].corr(numeric_only=True)
-    fig = plt.figure()
-    plt.imshow(corr, interpolation='nearest', aspect='auto')
-    plt.xticks(range(len(num_cols)), num_cols, rotation=90)
-    plt.yticks(range(len(num_cols)), num_cols)
-    plt.title("Correlation heatmap (Pearson)")
-    plt.colorbar()
-    st.pyplot(fig)
+fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+df[features].plot(kind="density", subplots=True, layout=(1, 2), sharex=False, ax=axes)
+st.pyplot(fig)
 
-# Churn by categorical features (top by deviation)
-if target is not None and (pd.api.types.is_bool_dtype(df[target]) or pd.api.types.is_numeric_dtype(df[target])):
-    st.subheader("Churn Rate by Category (Top Signals)")
-    global_rate = df[target].mean()
-    cat_cols = [c for c in df.columns if c not in num_cols and c != target and df[c].nunique(dropna=False) <= 12]
-    scores = []
-    for c in cat_cols:
-        try:
-            rates = df.groupby(c, dropna=False)[target].mean()
-            weight = df[c].value_counts(normalize=True, dropna=False).reindex(rates.index).fillna(0)
-            score = float((weight * (rates - global_rate).abs()).sum())
-            scores.append((c, score))
-        except Exception:
-            pass
-    scores = sorted(scores, key=lambda x: x[1], reverse=True)[:4]
-    for c, _ in scores:
-        grp = df.groupby(c, dropna=False)[target].mean().sort_values(ascending=False)
-        fig = plt.figure()
-        grp.plot(kind="bar")
-        plt.title(f"Churn rate by {c}")
-        plt.ylabel("Churn rate")
-        plt.xlabel(c)
-        st.pyplot(fig)
+# --- Boxplot & Violin for "Total intl calls"
+st.subheader("Boxplot & Violin")
+fig, axes = plt.subplots(1, 2, figsize=(8, 4), sharey=True)
+sns.boxplot(y=df["Total intl calls"], ax=axes[0])
+sns.violinplot(y=df["Total intl calls"], ax=axes[1])
+st.pyplot(fig)
 
-# Scatter explorers for common telecom fields (if present)
-st.subheader("Exploratory Plots")
-pairs = [("tenure","MonthlyCharges"), ("tenure","TotalCharges"), ("SeniorCitizen","MonthlyCharges")]
-for x, y in pairs:
-    if x in df.columns and y in df.columns:
-        fig = plt.figure()
-        plt.scatter(df[x], df[y], s=10, alpha=0.6)
-        plt.title(f"{y} vs {x}")
-        plt.xlabel(x)
-        plt.ylabel(y)
-        st.pyplot(fig)
+# --- Correlation heatmap
+st.subheader("Correlation Heatmap (Numeric Features)")
+numerical = list(
+    set(df.select_dtypes(include=[np.number]).columns)
+    - {"Total day charge","Total eve charge","Total night charge","Total intl charge"}
+)
+fig, ax = plt.subplots(figsize=(10, 6))
+sns.heatmap(df[numerical].corr(), annot=False, cmap="coolwarm", ax=ax)
+st.pyplot(fig)
+
+# --- Jointplots
+st.subheader("Jointplots")
+st.write("Relationship between **Total day minutes** and **Total night minutes**")
+g = sns.jointplot(x="Total day minutes", y="Total night minutes", data=df, kind="scatter")
+st.pyplot(g.fig)
+
+g = sns.jointplot(x="Total day minutes", y="Total night minutes", data=df, kind="kde", color="g")
+st.pyplot(g.fig)
+
+# --- Pairplot
+st.subheader("Pairplot of Numerical Features")
+st.write("This may take a while ⏳")
+sns.set(style="ticks")
+g = sns.pairplot(df[numerical])
+st.pyplot(g.fig)
+
+# --- LM plot with churn hue
+st.subheader("Scatter by Churn")
+g = sns.lmplot(
+    x="Total day minutes", y="Total night minutes", data=df,
+    hue="Churn", fit_reg=False, aspect=1.2
+)
+st.pyplot(g.fig)
+
+# --- Boxplots by Churn
+st.subheader("Boxplots by Churn")
+numerical_with_calls = numerical + ["Customer service calls"]
+fig, axes = plt.subplots(nrows=3, ncols=4, figsize=(15, 10))
+for idx, feat in enumerate(numerical_with_calls[:12]):
+    ax = axes[int(idx / 4), idx % 4]
+    sns.boxplot(x="Churn", y=feat, data=df, ax=ax)
+    ax.set_xlabel("")
+    ax.set_ylabel(feat)
+fig.tight_layout()
+st.pyplot(fig)
+
+# --- Customer service calls distribution
+st.subheader("Customer Service Calls")
+fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
+sns.countplot(x="Customer service calls", data=df, ax=axes[0])
+sns.countplot(x="Customer service calls", hue="Churn", data=df, ax=axes[1])
+st.pyplot(fig)
+
+# --- International / Voice mail plans vs churn
+st.subheader("Plans vs Churn")
+fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
+sns.countplot(x="International plan", hue="Churn", data=df, ax=axes[0])
+sns.countplot(x="Voice mail plan", hue="Churn", data=df, ax=axes[1])
+st.pyplot(fig)
+
+# --- State churn rates
+st.subheader("Churn Rate by State (Top States)")
+state_churn = df.groupby("State")["Churn"].mean().sort_values(ascending=False).head(10)
+fig, ax = plt.subplots(figsize=(10, 4))
+state_churn.plot(kind="bar", ax=ax)
+ax.set_ylabel("Churn rate")
+st.pyplot(fig)
+
+# --- t-SNE visualization
+st.subheader("t-SNE Representation of Customers")
 
 st.markdown("""
-### Key Insight Prompts
-- Which categories show the largest deviation from the global churn rate?
-- Are higher monthly charges associated with higher churn?
-- Does churn concentrate in early-tenure customers?
+**t-distributed Stochastic Neighbor Embedding (t-SNE)** is a dimensionality reduction method.  
+It projects high-dimensional data onto a 2D plane, while trying to preserve the local neighborhood structure:
+- Points that were close in the original space remain close on the 2D plane.
+- Points that were far apart remain far apart.
+
+Essentially, it’s a way to **see clusters and patterns** in complex data.
+
+⚠️ **Important caveats**:
+- **Computationally heavy** → not practical for very large datasets (scikit-learn implementation can be slow).
+- **Randomness** → different seeds can produce different pictures.
+- **Interpretation** → you shouldn’t make final conclusions from t-SNE plots, but they can inspire hypotheses for further analysis.
+""")
+
+X = df.drop(["Churn","State"], axis=1)
+X["International plan"] = X["International plan"].map({"Yes":1,"No":0})
+X["Voice mail plan"] = X["Voice mail plan"].map({"Yes":1,"No":0})
+X = X.fillna(0)
+
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+tsne = TSNE(random_state=17, n_iter=500, perplexity=30)
+tsne_repr = tsne.fit_transform(X_scaled)
+
+# Plot 1: Base t-SNE
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter(tsne_repr[:,0], tsne_repr[:,1], alpha=0.5)
+ax.set_title("t-SNE representation (all customers)")
+st.pyplot(fig)
+
+# Plot 2: Colored by churn
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter(tsne_repr[:,0], tsne_repr[:,1],
+           c=df["Churn"].map({False:"blue", True:"orange"}), alpha=0.5)
+ax.set_title("t-SNE colored by Churn (Blue = Loyal, Orange = Churned)")
+st.pyplot(fig)
+
+# Plot 3: Colored by International/Voicemail plans
+fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
+for i, name in enumerate(["International plan","Voice mail plan"]):
+    axes[i].scatter(
+        tsne_repr[:,0], tsne_repr[:,1],
+        c=df[name].map({"Yes":"orange","No":"blue"}), alpha=0.5
+    )
+    axes[i].set_title(name)
+st.pyplot(fig)
+
+st.markdown("""
+💡 **Insight from this dataset**:
+- Churned customers (orange) tend to cluster together in certain regions of the t-SNE plot.
+- Many dissatisfied churners appear to overlap with **International Plan = Yes** but **no Voice mail plan** segment.
 """)
